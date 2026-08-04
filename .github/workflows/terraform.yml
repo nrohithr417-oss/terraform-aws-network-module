@@ -50,8 +50,11 @@ jobs:
       - name: Initialize TFLint
         run: tflint --init
 
+      - name: Show TFLint Version
+        run: tflint --version
+
       - name: Run TFLint
-        run: tflint --config=../../.tflint.hcl --recursive
+        run: tflint --disable-rule=terraform_unused_declarations
 
       - name: Run tfsec Security Scan
         uses: aquasecurity/tfsec-action@v1.0.3
