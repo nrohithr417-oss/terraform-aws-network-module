@@ -1,52 +1,69 @@
 variable "project_name" {
-  type = string
+  description = "Project name"
+  type        = string
 }
 
 variable "environment" {
-  type = string
+  description = "Environment (dev, qa, stage, prod)"
+  type        = string
 }
 
 variable "aws_region" {
-  type = string
+  description = "AWS Region"
+  type        = string
 }
 
 variable "vpc_cidr" {
-  type = string
+  description = "VPC CIDR Block"
+  type        = string
 }
 
 variable "public_subnet_cidrs" {
-  type = list(string)
+  description = "Public Subnet CIDRs"
+  type        = list(string)
 }
 
 variable "private_subnet_cidrs" {
-  type = list(string)
+  description = "Private Subnet CIDRs"
+  type        = list(string)
 }
 
 variable "availability_zones" {
-  type = list(string)
+  description = "Availability Zones"
+  type        = list(string)
 }
 
 variable "tags" {
-  type = map(string)
+  description = "Common Tags"
+  type        = map(string)
 }
 
 variable "single_nat_gateway" {
-  type = bool
+  description = "Use a single NAT Gateway"
+  type        = bool
+  default     = true
 }
 
 variable "enable_flow_logs" {
-  type = bool
+  description = "Enable VPC Flow Logs"
+  type        = bool
+  default     = false
 }
 
 variable "flow_logs_retention_days" {
   description = "CloudWatch Log Group retention period in days"
   type        = number
+  default     = 30
 }
 
 variable "enable_endpoints" {
-  type = bool
+  description = "Enable VPC Endpoints"
+  type        = bool
+  default     = false
 }
 
 variable "enable_ipv6" {
-  type = bool
+  description = "Enable IPv6"
+  type        = bool
+  default     = false
 }
