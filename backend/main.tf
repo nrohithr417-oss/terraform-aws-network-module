@@ -99,9 +99,9 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" 
 # Access Logs Bucket
 ########################################
 
-# tfsec:ignore:aws-s3-enable-bucket-logging
-# Reason: This bucket is the final access-log destination.
+# This bucket is the final access-log destination.
 # Enabling logging on it would create recursive access logs.
+#tfsec:ignore:aws-s3-enable-bucket-logging
 resource "aws_s3_bucket" "access_logs" {
   bucket = "${var.bucket_name}-access-logs"
 
@@ -156,8 +156,8 @@ resource "aws_s3_bucket_versioning" "access_logs" {
 # Access Logs Bucket Encryption
 ########################################
 
-# tfsec:ignore:aws-s3-encryption-customer-key
-# Reason: The S3 server-access-log destination uses SSE-S3 encryption.
+# The S3 server-access-log destination uses SSE-S3 encryption.
+#tfsec:ignore:aws-s3-encryption-customer-key
 resource "aws_s3_bucket_server_side_encryption_configuration" "access_logs" {
   bucket = aws_s3_bucket.access_logs.id
 
