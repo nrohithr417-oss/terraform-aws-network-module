@@ -47,8 +47,11 @@ jobs:
       - name: Install TFLint
         uses: terraform-linters/setup-tflint@v4
 
+      - name: Initialize TFLint
+        run: tflint --init
+
       - name: Run TFLint
-        run: tflint
+        run: tflint --config=../../.tflint.hcl --recursive
 
       - name: Run tfsec Security Scan
         uses: aquasecurity/tfsec-action@v1.0.3
