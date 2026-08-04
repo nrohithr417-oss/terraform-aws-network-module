@@ -99,9 +99,10 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" 
 # Access Logs Bucket
 ########################################
 
-# This bucket is the final log destination. Enabling logging to itself
-# would create recursive S3 access logs.
-resource "aws_s3_bucket" "access_logs" { #tfsec:ignore:aws-s3-enable-bucket-logging
+# tfsec:ignore:aws-s3-enable-bucket-logging
+# Reason: This bucket is the final access-log destination.
+# Enabling logging on it would create recursive access logs.
+resource "aws_s3_bucket" "access_logs" {
   bucket = "${var.bucket_name}-access-logs"
 
   lifecycle {
@@ -155,8 +156,9 @@ resource "aws_s3_bucket_versioning" "access_logs" {
 # Access Logs Bucket Encryption
 ########################################
 
-# S3 server-access-log delivery uses SSE-S3 for the destination bucket.
-resource "aws_s3_bucket_server_side_encryption_configuration" "access_logs" { #tfsec:ignore:aws-s3-encryption-customer-key
+# tfsec:ignore:aws-s3-encryption-customer-key
+# Reason: The S3 server-access-log destination uses SSE-S3 encryption.
+resource "aws_s3_bucket_server_side_encryption_configuration" "access_logs" {
   bucket = aws_s3_bucket.access_logs.id
 
   rule {
@@ -196,7 +198,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "access_logs" {
 }
 
 ########################################
-# Allow S3 Log Delivery
+# Access Logs Bucket Policy
 ########################################
 
 resource "aws_s3_bucket_policy" "access_logs" {
@@ -294,24 +296,6 @@ resource "aws_s3_bucket_policy" "terraform_state" {
         Condition = {
           Bool = {
             "aws:SecureTransport" = "false"
-          }
-        }
-      },
-      {
-        Sid       = "DenyIncorrectEncryptionHeader"
-        Effect    = "Deny"
-        Principal = "*"
-        Action    = "s3:PutObject"
-
-        Resource = "${aws_s3_bucket.terraform_state.arn}/*"
-
-        Condition = {
-          StringNotEquals = {
-            "s3:x-amz-server-side-encryption" = "aws:kms"
-          }
-
-          Null = {
-            "s3:x-amz-server-side-encryption" = "false"
           }
         }
       }
