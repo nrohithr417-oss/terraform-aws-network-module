@@ -1,5 +1,8 @@
-resource "aws_s3_bucket" "terraform_state" {
+########################################
+# S3 Bucket for Terraform State
+########################################
 
+resource "aws_s3_bucket" "terraform_state" {
   bucket = var.bucket_name
 
   tags = {
@@ -7,8 +10,24 @@ resource "aws_s3_bucket" "terraform_state" {
   }
 }
 
-resource "aws_s3_bucket_versioning" "terraform_state" {
+########################################
+# Block Public Access
+########################################
 
+resource "aws_s3_bucket_public_access_block" "terraform_state" {
+  bucket = aws_s3_bucket.terraform_state.id
+
+  block_public_acls       = true
+  ignore_public_acls      = true
+  block_public_policy     = true
+  restrict_public_buckets = true
+}
+
+########################################
+# Enable Versioning
+########################################
+
+resource "aws_s3_bucket_versioning" "terraform_state" {
   bucket = aws_s3_bucket.terraform_state.id
 
   versioning_configuration {
@@ -16,19 +35,27 @@ resource "aws_s3_bucket_versioning" "terraform_state" {
   }
 }
 
-resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" {
+########################################
+# Server Side Encryption
+########################################
 
+resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" {
   bucket = aws_s3_bucket.terraform_state.id
 
   rule {
     apply_server_side_encryption_by_default {
       sse_algorithm = "AES256"
     }
+
+    bucket_key_enabled = true
   }
 }
 
-resource "aws_dynamodb_table" "terraform_lock" {
+########################################
+# DynamoDB Table for State Locking
+########################################
 
+resource "aws_dynamodb_table" "terraform_lock" {
   name         = var.dynamodb_table
   billing_mode = "PAY_PER_REQUEST"
 
@@ -37,6 +64,14 @@ resource "aws_dynamodb_table" "terraform_lock" {
   attribute {
     name = "LockID"
     type = "S"
+  }
+
+  server_side_encryption {
+    enabled = true
+  }
+
+  point_in_time_recovery {
+    enabled = true
   }
 
   tags = {
