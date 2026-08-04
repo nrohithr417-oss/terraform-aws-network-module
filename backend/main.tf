@@ -99,15 +99,9 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" 
 # Access Logs Bucket
 ########################################
 
-# trivy:ignore:AVD-AWS-0088
-# tfsec:ignore:aws-s3-enable-bucket-logging
-# Reason: Logging this bucket to itself would create recursive access logs.
-
-# trivy:ignore:AVD-AWS-0132
-# tfsec:ignore:aws-s3-encryption-customer-key
-# Reason: S3 server access-log delivery uses SSE-S3 on the destination bucket.
-
-resource "aws_s3_bucket" "access_logs" {
+# This bucket is the final log destination. Enabling logging to itself
+# would create recursive S3 access logs.
+resource "aws_s3_bucket" "access_logs" { #tfsec:ignore:aws-s3-enable-bucket-logging
   bucket = "${var.bucket_name}-access-logs"
 
   lifecycle {
@@ -161,7 +155,8 @@ resource "aws_s3_bucket_versioning" "access_logs" {
 # Access Logs Bucket Encryption
 ########################################
 
-resource "aws_s3_bucket_server_side_encryption_configuration" "access_logs" {
+# S3 server-access-log delivery uses SSE-S3 for the destination bucket.
+resource "aws_s3_bucket_server_side_encryption_configuration" "access_logs" { #tfsec:ignore:aws-s3-encryption-customer-key
   bucket = aws_s3_bucket.access_logs.id
 
   rule {
