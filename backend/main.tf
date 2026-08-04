@@ -9,7 +9,7 @@ data "aws_caller_identity" "current" {}
 ########################################
 
 resource "aws_kms_key" "terraform_backend" {
-  description             = "KMS key for Terraform state and lock table"
+  description             = "KMS key for Terraform state and DynamoDB lock table"
   deletion_window_in_days = 30
   enable_key_rotation     = true
 
@@ -42,7 +42,7 @@ resource "aws_s3_bucket" "terraform_state" {
 }
 
 ########################################
-# Terraform State Bucket Public Access
+# State Bucket Public Access Protection
 ########################################
 
 resource "aws_s3_bucket_public_access_block" "terraform_state" {
@@ -55,7 +55,7 @@ resource "aws_s3_bucket_public_access_block" "terraform_state" {
 }
 
 ########################################
-# Terraform State Bucket Ownership
+# State Bucket Ownership
 ########################################
 
 resource "aws_s3_bucket_ownership_controls" "terraform_state" {
@@ -67,7 +67,7 @@ resource "aws_s3_bucket_ownership_controls" "terraform_state" {
 }
 
 ########################################
-# Terraform State Bucket Versioning
+# State Bucket Versioning
 ########################################
 
 resource "aws_s3_bucket_versioning" "terraform_state" {
@@ -79,7 +79,7 @@ resource "aws_s3_bucket_versioning" "terraform_state" {
 }
 
 ########################################
-# Terraform State Bucket KMS Encryption
+# State Bucket KMS Encryption
 ########################################
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" {
@@ -96,8 +96,16 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" 
 }
 
 ########################################
-# S3 Access Logs Bucket
+# Access Logs Bucket
 ########################################
+
+# trivy:ignore:AVD-AWS-0088
+# tfsec:ignore:aws-s3-enable-bucket-logging
+# Reason: Logging this bucket to itself would create recursive access logs.
+
+# trivy:ignore:AVD-AWS-0132
+# tfsec:ignore:aws-s3-encryption-customer-key
+# Reason: S3 server access-log delivery uses SSE-S3 on the destination bucket.
 
 resource "aws_s3_bucket" "access_logs" {
   bucket = "${var.bucket_name}-access-logs"
@@ -113,7 +121,7 @@ resource "aws_s3_bucket" "access_logs" {
 }
 
 ########################################
-# Access Logs Bucket Public Access
+# Access Logs Public Access Protection
 ########################################
 
 resource "aws_s3_bucket_public_access_block" "access_logs" {
@@ -164,14 +172,18 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "access_logs" {
 }
 
 ########################################
-# Access Logs Bucket Lifecycle
+# Access Logs Lifecycle
 ########################################
 
 resource "aws_s3_bucket_lifecycle_configuration" "access_logs" {
   bucket = aws_s3_bucket.access_logs.id
 
+  depends_on = [
+    aws_s3_bucket_versioning.access_logs
+  ]
+
   rule {
-    id     = "delete-old-access-logs"
+    id     = "access-log-retention"
     status = "Enabled"
 
     filter {
@@ -200,7 +212,7 @@ resource "aws_s3_bucket_policy" "access_logs" {
 
     Statement = [
       {
-        Sid    = "S3ServerAccessLogsPolicy"
+        Sid    = "AllowS3ServerAccessLogs"
         Effect = "Allow"
 
         Principal = {
@@ -220,17 +232,35 @@ resource "aws_s3_bucket_policy" "access_logs" {
             "aws:SourceAccount" = data.aws_caller_identity.current.account_id
           }
         }
+      },
+      {
+        Sid       = "DenyInsecureTransport"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+
+        Resource = [
+          aws_s3_bucket.access_logs.arn,
+          "${aws_s3_bucket.access_logs.arn}/*"
+        ]
+
+        Condition = {
+          Bool = {
+            "aws:SecureTransport" = "false"
+          }
+        }
       }
     ]
   })
 
   depends_on = [
-    aws_s3_bucket_public_access_block.access_logs
+    aws_s3_bucket_public_access_block.access_logs,
+    aws_s3_bucket_ownership_controls.access_logs
   ]
 }
 
 ########################################
-# Enable Terraform State Access Logging
+# Enable State Bucket Access Logging
 ########################################
 
 resource "aws_s3_bucket_logging" "terraform_state" {
@@ -245,7 +275,7 @@ resource "aws_s3_bucket_logging" "terraform_state" {
 }
 
 ########################################
-# Deny Unencrypted HTTP Connections
+# State Bucket Security Policy
 ########################################
 
 resource "aws_s3_bucket_policy" "terraform_state" {
@@ -271,12 +301,31 @@ resource "aws_s3_bucket_policy" "terraform_state" {
             "aws:SecureTransport" = "false"
           }
         }
+      },
+      {
+        Sid       = "DenyIncorrectEncryptionHeader"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:PutObject"
+
+        Resource = "${aws_s3_bucket.terraform_state.arn}/*"
+
+        Condition = {
+          StringNotEquals = {
+            "s3:x-amz-server-side-encryption" = "aws:kms"
+          }
+
+          Null = {
+            "s3:x-amz-server-side-encryption" = "false"
+          }
+        }
       }
     ]
   })
 
   depends_on = [
-    aws_s3_bucket_public_access_block.terraform_state
+    aws_s3_bucket_public_access_block.terraform_state,
+    aws_s3_bucket_server_side_encryption_configuration.terraform_state
   ]
 }
 
