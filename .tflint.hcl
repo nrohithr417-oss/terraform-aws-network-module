@@ -1,14 +1,14 @@
-plugin "terraform" {
-  enabled = true
-  preset  = "recommended"
-}
+- name: Install TFLint
+  uses: terraform-linters/setup-tflint@v4
 
-plugin "aws" {
-  enabled = true
-  version = "0.39.0"
-  source  = "github.com/terraform-linters/tflint-ruleset-aws"
-}
+- name: Initialize TFLint
+  working-directory: environments/dev
+  run: tflint --init
 
-rule "terraform_unused_declarations" {
-  enabled = false
-}
+- name: Show TFLint version
+  working-directory: environments/dev
+  run: tflint --version
+
+- name: Run TFLint
+  working-directory: environments/dev
+  run: tflint --config="${{ github.workspace }}/.tflint.hcl"
