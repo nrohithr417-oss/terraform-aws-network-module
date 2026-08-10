@@ -1,18 +1,14 @@
-- name: Install TFLint
-  uses: terraform-linters/setup-tflint@v4
+config {
+  format = "compact"
+}
 
-- name: Initialize TFLint
-  working-directory: environments/dev
-  run: tflint --init
+plugin "terraform" {
+  enabled = true
+  preset  = "recommended"
+}
 
-- name: Debug TFLint
-  working-directory: environments/dev
-  run: |
-    pwd
-    ls -la ../../
-    cat ../../.tflint.hcl
-    tflint --version
-
-- name: Run TFLint
-  working-directory: environments/dev
-  run: tflint --config="${{ github.workspace }}/.tflint.hcl"
+plugin "aws" {
+  enabled = true
+  version = "0.42.0"
+  source  = "github.com/terraform-linters/tflint-ruleset-aws"
+}
