@@ -3,6 +3,7 @@
 ########################################
 
 resource "aws_security_group" "public" {
+  #checkov:skip=CKV2_AWS_5:Reusable network module exports this security group for attachment by downstream ALB or compute modules.
 
   name        = "${local.name_prefix}-public-sg"
   description = "Public Security Group"
@@ -16,36 +17,28 @@ resource "aws_security_group" "public" {
   )
 }
 
-resource "aws_vpc_security_group_ingress_rule" "public_ssh" {
-
-  security_group_id = aws_security_group.public.id
-
-  cidr_ipv4 = "0.0.0.0/0"
-
-  from_port = 22
-  to_port   = 22
-
-  ip_protocol = "tcp"
-
-  description = "Allow SSH"
-}
+########################################
+# Public Security Group - HTTP
+########################################
 
 resource "aws_vpc_security_group_ingress_rule" "public_http" {
-
   security_group_id = aws_security_group.public.id
 
-  cidr_ipv4 = "0.0.0.0/0"
+  cidr_ipv4 = var.vpc_cidr
 
   from_port = 80
   to_port   = 80
 
   ip_protocol = "tcp"
 
-  description = "Allow HTTP"
+  description = "Allow HTTP traffic from within the VPC"
 }
 
-resource "aws_vpc_security_group_ingress_rule" "public_https" {
+########################################
+# Public Security Group - HTTPS
+########################################
 
+resource "aws_vpc_security_group_ingress_rule" "public_https" {
   security_group_id = aws_security_group.public.id
 
   cidr_ipv4 = "0.0.0.0/0"
@@ -55,18 +48,21 @@ resource "aws_vpc_security_group_ingress_rule" "public_https" {
 
   ip_protocol = "tcp"
 
-  description = "Allow HTTPS"
+  description = "Allow HTTPS traffic"
 }
 
-resource "aws_vpc_security_group_egress_rule" "public_all" {
+########################################
+# Public Security Group - Egress
+########################################
 
+resource "aws_vpc_security_group_egress_rule" "public_all" {
   security_group_id = aws_security_group.public.id
 
   cidr_ipv4 = "0.0.0.0/0"
 
   ip_protocol = "-1"
 
-  description = "Allow All Outbound"
+  description = "Allow all outbound traffic"
 }
 
 ########################################
@@ -74,6 +70,7 @@ resource "aws_vpc_security_group_egress_rule" "public_all" {
 ########################################
 
 resource "aws_security_group" "private" {
+  #checkov:skip=CKV2_AWS_5:Reusable network module exports this security group for attachment by downstream EC2 or Auto Scaling resources.
 
   name        = "${local.name_prefix}-private-sg"
   description = "Private Security Group"
@@ -87,24 +84,50 @@ resource "aws_security_group" "private" {
   )
 }
 
-resource "aws_vpc_security_group_ingress_rule" "private_internal" {
+########################################
+# Private Security Group - HTTP
+########################################
 
+resource "aws_vpc_security_group_ingress_rule" "private_http" {
   security_group_id = aws_security_group.private.id
 
   cidr_ipv4 = var.vpc_cidr
 
-  ip_protocol = "-1"
+  from_port = 80
+  to_port   = 80
 
-  description = "Allow VPC Traffic"
+  ip_protocol = "tcp"
+
+  description = "Allow HTTP traffic from within the VPC"
 }
 
-resource "aws_vpc_security_group_egress_rule" "private_all" {
+########################################
+# Private Security Group - HTTPS
+########################################
 
+resource "aws_vpc_security_group_ingress_rule" "private_https" {
+  security_group_id = aws_security_group.private.id
+
+  referenced_security_group_id = aws_security_group.public.id
+
+  from_port = 443
+  to_port   = 443
+
+  ip_protocol = "tcp"
+
+  description = "Allow HTTPS traffic from the public security group"
+}
+
+########################################
+# Private Security Group - Egress
+########################################
+
+resource "aws_vpc_security_group_egress_rule" "private_all" {
   security_group_id = aws_security_group.private.id
 
   cidr_ipv4 = "0.0.0.0/0"
 
   ip_protocol = "-1"
 
-  description = "Allow All Outbound"
+  description = "Allow all outbound traffic"
 }

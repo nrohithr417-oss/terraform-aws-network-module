@@ -4,6 +4,8 @@
 
 data "aws_caller_identity" "current" {}
 
+data "aws_partition" "current" {}
+
 ########################################
 # Customer-Managed KMS Key
 ########################################
@@ -13,11 +15,33 @@ resource "aws_kms_key" "terraform_backend" {
   deletion_window_in_days = 30
   enable_key_rotation     = true
 
+  policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [
+      {
+        Sid    = "EnableRootPermissions"
+        Effect = "Allow"
+
+        Principal = {
+          AWS = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+
+        Action   = "kms:*"
+        Resource = "*"
+      }
+    ]
+  })
+
   tags = {
     Name      = "terraform-backend-kms-key"
     ManagedBy = "Terraform"
   }
 }
+
+########################################
+# KMS Alias
+########################################
 
 resource "aws_kms_alias" "terraform_backend" {
   name          = "alias/terraform-backend"
@@ -29,6 +53,9 @@ resource "aws_kms_alias" "terraform_backend" {
 ########################################
 
 resource "aws_s3_bucket" "terraform_state" {
+  #checkov:skip=CKV2_AWS_62:Terraform state bucket does not require event-driven notifications.
+  #checkov:skip=CKV_AWS_144:Cross-region replication is intentionally not enabled for this development backend.
+
   bucket = var.bucket_name
 
   lifecycle {
@@ -96,13 +123,45 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" 
 }
 
 ########################################
+# State Bucket Lifecycle
+########################################
+
+resource "aws_s3_bucket_lifecycle_configuration" "terraform_state" {
+  bucket = aws_s3_bucket.terraform_state.id
+
+  depends_on = [
+    aws_s3_bucket_versioning.terraform_state
+  ]
+
+  rule {
+    id     = "terraform-state-lifecycle"
+    status = "Enabled"
+
+    filter {
+      prefix = ""
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 90
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
+}
+
+########################################
 # Access Logs Bucket
 ########################################
 
-# This bucket is the final access-log destination.
-# Enabling logging on it would create recursive access logs.
-#tfsec:ignore:aws-s3-enable-bucket-logging
 resource "aws_s3_bucket" "access_logs" {
+  #checkov:skip=CKV2_AWS_62:Dedicated S3 server access-log destination does not require event notifications.
+  #checkov:skip=CKV_AWS_144:Cross-region replication is intentionally not enabled for this development log bucket.
+  #checkov:skip=CKV_AWS_145:S3 server access-log destination must use SSE-S3 rather than SSE-KMS.
+  #tfsec:ignore:aws-s3-enable-bucket-logging
+  #tfsec:ignore:aws-s3-encryption-customer-key
+
   bucket = "${var.bucket_name}-access-logs"
 
   lifecycle {
@@ -156,9 +215,10 @@ resource "aws_s3_bucket_versioning" "access_logs" {
 # Access Logs Bucket Encryption
 ########################################
 
-# The S3 server-access-log destination uses SSE-S3 encryption.
-#tfsec:ignore:aws-s3-encryption-customer-key
 resource "aws_s3_bucket_server_side_encryption_configuration" "access_logs" {
+  #checkov:skip=CKV_AWS_145:S3 server access-log destination must use SSE-S3 rather than SSE-KMS.
+  #tfsec:ignore:aws-s3-encryption-customer-key
+
   bucket = aws_s3_bucket.access_logs.id
 
   rule {
@@ -193,6 +253,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "access_logs" {
 
     noncurrent_version_expiration {
       noncurrent_days = 30
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
     }
   }
 }
